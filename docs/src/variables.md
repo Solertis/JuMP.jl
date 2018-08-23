@@ -44,6 +44,10 @@ This code does three things:
 To reduce confusion, we will attempt, where possible, to always refer to
 variables with their corresponding prefix.
 
+!!! warn
+    If you create two JuMP variables with the same name, an error will be
+    thrown.
+
 JuMP variables can have attributes, such as names or an initial primal start
 value. We illustrate the name attribute in the following example:
 ```jldoctest variables
@@ -163,9 +167,44 @@ julia> JuMP.lowerbound(x)
 1.0
 ```
 
-!!! warn
-    If you create two JuMP variables with the same name, an error will be
-    thrown.
+Another option is to use the `JuMP.setlowerbound` and `JuMP.setupperbound`
+functions. These can also be used to modify an existing variable bound. For
+example:
+```jldoctest; setup=:(model=Model())
+julia> @variable(model, x >= 1)
+x
+
+julia> JuMP.lowerbound(x)
+1.0
+
+julia> JuMP.setlowerbound(x, 2)
+
+julia> JuMP.lowerbound(x)
+2.0
+```
+
+Finally, we can delete variable bounds using `JuMP.deletelowerbound` and
+`JuMP.deleteupperbound`:
+```jldoctest; setup=:(model=Model())
+julia> @variable(model, 1 <= x <= 2)
+x
+
+julia> JuMP.lowerbound(x)
+1.0
+
+julia> JuMP.deletelowerbound(x)
+
+julia> JuMP.haslowerbound(x)
+false
+
+julia> JuMP.upperbound(x)
+2.0
+
+julia> JuMP.deleteupperbound(x)
+
+julia> JuMP.hasupperbound(x)
+false
+```
 
 ## Variable containers
 
@@ -446,10 +485,10 @@ julia> x = @variable(model, [i=1:2], basename="x", lowerbound=i, integer=true)
 
 ## User-defined containers
 
-Finally, in the section [Variable containers](@ref), we explained how JuMP
-supports the efficient creation of collections of JuMP variables in three types
-of containers. However, users are also free to create collections of JuMP
-variables in their own datastructures. For example, the following code creates a
+In the section [Variable containers](@ref), we explained how JuMP supports the
+efficient creation of collections of JuMP variables in three types of
+containers. However, users are also free to create collections of JuMP variables
+in their own datastructures. For example, the following code creates a
 dictionary with symmetric matrices as the values:
 ```jldoctest; setup=:(model=Model())
 julia> variables = Dict{Symbol, Symmetric{JuMP.VariableRef,
@@ -468,7 +507,28 @@ Dict{Symbol,Symmetric{JuMP.VariableRef,Array{JuMP.VariableRef,2}}} with 2 entrie
 
 ## Deleting variables
 
-**TODO(@odow):** explain how to delete variables.
+Finally, JuMP supports the deletion of optimization variables. However, before
+we explain how to do so, it is useful to add a short alias for
+`MathOptInterface`:
+```jldoctest variables_delete; setup=:(model=Model())
+julia> const MOI = JuMP.MathOptInterface
+MathOptInterface
+```
+
+To delete variables, we can use the `MOI.delete!` method. We can also check
+whether `x` is a valid JuMP variable in `model` using the `MOI.isvalid` method:
+```jldoctest variables_delete
+julia> @variable(model, x)
+x
+
+julia> MOI.isvalid(model, x)
+true
+
+julia> MOI.delete!(model, x)
+
+julia> MOI.isvalid(model, x)
+false
+```
 
 ## Reference
 
