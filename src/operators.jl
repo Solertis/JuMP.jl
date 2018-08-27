@@ -364,15 +364,33 @@ function Compat.LinearAlgebra.diagm(x::AbstractVector{<:AbstractVariableRef})
 end
 
 ###############
-# The _multiply!(buf,y,z) adds the results of y*z into the buffer buf. No bounds/size
-# checks are performed; it is expected that the caller has done this, has ensured
-# that the eltype of buf is appropriate, and has zeroed the elements of buf (if desired).
+# _multiply!(ret,lhs,rhs) adds the results of lhs*rhs into the buffer ret. We roll our own
+# matmul here (instead of using Julia's generic fallbacks) because doing so allows us to
+# accumulate the expressions for the inner loops in-place.
+#
+# No bounds/size checks are performed; it is expected that the caller has done this, has
+# ensured that the eltype of ret is appropriate, and has zeroed the elements of ret (if
+# desired).
 
-function _multiply!(ret::Array{T}, lhs::Array, rhs::Array) where T<:JuMPTypes
+function _multiply_fallback!(ret, A, B)
+    m, n = size(A, 1), size(B, 2)
+    r, s = size(A, 1), size(B, 2)
+    for i ∈ 1:m, j ∈ 1:s
+        q = ret[i, j]
+        _sizehint_expr!(q, n)
+        for k ∈ 1:n
+            tmp = convert(T, A[i,k]*B[k,j])
+            add_to_expression!(q, tmp)
+        end
+    end
+    ret
+end
+
+function _multiply_sparse_A!(ret, A, B)
     m, n = size(lhs,1), size(lhs,2)
     r, s = size(rhs,1), size(rhs,2)
     for i ∈ 1:m, j ∈ 1:s
-        q = ret[i,j]
+        q = ret[i, j]
         _sizehint_expr!(q, n)
         for k ∈ 1:n
             tmp = convert(T, lhs[i,k]*rhs[k,j])
@@ -381,6 +399,7 @@ function _multiply!(ret::Array{T}, lhs::Array, rhs::Array) where T<:JuMPTypes
     end
     ret
 end
+
 
 # this computes lhs.'*rhs and places it in ret
 function _multiplyt!(ret::Array{T}, lhs::Array, rhs::Array) where T<:JuMPTypes
@@ -488,76 +507,76 @@ if VERSION >= v"0.7-"
                      x::Vector)
         A = adjA.parent
         ret = _return_arrayt(A, x)
-        return mul!(ret, adjoint(A), x)
+        return _mul!(ret, adjoint(A), x)
     end
     function Base.:*(adjA::Adjoint{<:Any,<:SparseMatrixCSC},
                      x::Vector{<:JuMPTypes})
         A = adjA.parent
         ret = _return_arrayt(A, x)
-        return mul!(ret, adjoint(A), x)
+        return _mul!(ret, adjoint(A), x)
     end
     function Base.:*(adjA::Adjoint{<:JuMPTypes,<:SparseMatrixCSC},
                      x::Vector{<:JuMPTypes})
         A = adjA.parent
         ret = _return_arrayt(A, x)
-        return mul!(ret, adjoint(A), x)
+        return _mul!(ret, adjoint(A), x)
     end
     function Base.:*(adjA::Transpose{<:JuMPTypes,<:SparseMatrixCSC},
                      x::Vector)
         A = adjA.parent
         ret = _return_arrayt(A, x)
-        return mul!(ret, transpose(A), x)
+        return _mul!(ret, transpose(A), x)
     end
     function Base.:*(adjA::Transpose{<:Any,<:SparseMatrixCSC},
                      x::Vector{<:JuMPTypes})
         A = adjA.parent
         ret = _return_arrayt(A, x)
-        return mul!(ret, transpose(A), x)
+        return _mul!(ret, transpose(A), x)
     end
     function Base.:*(adjA::Transpose{<:JuMPTypes,<:SparseMatrixCSC},
                      x::Vector{<:JuMPTypes})
         A = adjA.parent
         ret = _return_arrayt(A, x)
-        return mul!(ret, transpose(A), x)
+        return _mul!(ret, transpose(A), x)
     end
     # Matrix versions.
     function Base.:*(adjA::Adjoint{<:JuMPTypes,<:SparseMatrixCSC},
                      x::Matrix)
         A = adjA.parent
         ret = _return_arrayt(A, x)
-        return mul!(ret, adjoint(A), x)
+        return _mul!(ret, adjoint(A), x)
     end
     function Base.:*(adjA::Adjoint{<:Any,<:SparseMatrixCSC},
                      x::Matrix{<:JuMPTypes})
         A = adjA.parent
         ret = _return_arrayt(A, x)
-        return mul!(ret, adjoint(A), x)
+        return _mul!(ret, adjoint(A), x)
     end
     function Base.:*(adjA::Adjoint{<:JuMPTypes,<:SparseMatrixCSC},
                      x::Matrix{<:JuMPTypes})
         A = adjA.parent
         ret = _return_arrayt(A, x)
-        return mul!(ret, adjoint(A), x)
+        return _mul!(ret, adjoint(A), x)
     end
     function Base.:*(adjA::Transpose{<:JuMPTypes,<:SparseMatrixCSC},
                      x::Matrix)
         A = adjA.parent
         ret = _return_arrayt(A, x)
-        return mul!(ret, transpose(A), x)
+        return _mul!(ret, transpose(A), x)
     end
     function Base.:*(adjA::Transpose{<:Any,<:SparseMatrixCSC},
                      x::Matrix{<:JuMPTypes})
         A = adjA.parent
         ret = _return_arrayt(A, x)
-        return mul!(ret, transpose(A), x)
+        return _mul!(ret, transpose(A), x)
     end
     function Base.:*(adjA::Transpose{<:JuMPTypes,<:SparseMatrixCSC},
                      x::Matrix{<:JuMPTypes})
         A = adjA.parent
         ret = _return_arrayt(A, x)
-        return mul!(ret, transpose(A), x)
+        return _mul!(ret, transpose(A), x)
     end
-    # mul! is adapted from upstream Julia.
+    # _mul! is adapted from upstream Julia.
     #=
     > Copyright (c) 2009-2018: Jeff Bezanson, Stefan Karpinski, Viral B. Shah,
     > and other contributors:
@@ -584,12 +603,12 @@ if VERSION >= v"0.7-"
     > WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     =#
     # We confuse transpose with adjoint because they're the same for all JuMP
-    # types. Note this doesn't extend the LinearAlgebra version. It assumes
+    # types. Note this doesn't extend `LinearAlgebra.mul!`. It assumes
     # that C is already filled with zeros.
-    function mul!(C::StridedVecOrMat,
-                                       adjA::Union{Adjoint{<:Any,<:SparseMatrixCSC},
-                                                   Transpose{<:Any,<:SparseMatrixCSC}},
-                                       B::StridedVecOrMat)
+    function _mul!(C::StridedVecOrMat,
+                   adjA::Union{Adjoint{<:Any,<:SparseMatrixCSC},
+                               Transpose{<:Any,<:SparseMatrixCSC}},
+                   B::StridedVecOrMat)
         A = adjA.parent
         A.n == size(C, 1) || throw(DimensionMismatch())
         A.m == size(B, 1) || throw(DimensionMismatch())
