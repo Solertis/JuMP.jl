@@ -319,14 +319,16 @@ function operators_test(ModelType::Type{<:JuMP.AbstractModel}, VariableRefType::
             end
 
             @testset "JuMP PR #943" begin
+                previous_operator_warn_limit = JuMP.set_operator_warn_limit(3)
                 pull943 = ModelType()
-                @variable(pull943, x[1 : 10^6]);
-                JuMP.setstartvalue.(x, 1 : 10^6)
-                @expression(pull943, testsum, sum(x[i] * i for i = 1 : 10^6))
-                @expression(pull943, testdot1, dot(x, 1 : 10^6))
-                @expression(pull943, testdot2, dot(1 : 10^6, x))
+                @variable(pull943, x[1:10])
+                JuMP.setstartvalue.(x, 1:10)
+                @expression(pull943, testsum, sum(x[i] * i for i in 1:10))
+                @expression(pull943, testdot1, dot(x, 1:10))
+                @expression(pull943, testdot2, dot(1:10, x))
                 @test JuMP.value(testsum, JuMP.startvalue) ≈ JuMP.value(testdot1, JuMP.startvalue)
                 @test JuMP.value(testsum, JuMP.startvalue) ≈ JuMP.value(testdot2, JuMP.startvalue)
+                JuMP.set_operator_warn_limit(previous_operator_warn_limit)
             end
         end
     end

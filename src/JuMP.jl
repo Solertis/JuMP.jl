@@ -688,6 +688,16 @@ function Base.setindex!(m::JuMP.Model, value, name::Symbol)
     m.obj_dict[name] = value
 end
 
+# Not defined as constant for testing reasons. We set the limit lower in some
+# tests to ensure we aren't triggering a slow path.
+OPERATOR_WARN_LIMIT = 20000
+function set_operator_warn_limit(new_limit)
+    global OPERATOR_WARN_LIMIT
+    old_limit = OPERATOR_WARN_LIMIT
+    OPERATOR_WARN_LIMIT = new_limit
+    return old_limit
+end
+
 """
     operator_warn(model::AbstractModel)
     operator_warn(model::Model)
@@ -702,15 +712,15 @@ a warning is generated once.
 function operator_warn(::AbstractModel) end
 function operator_warn(model::Model)
     model.operator_counter += 1
-    if model.operator_counter > 20000
-        Base.warn_once(
+    if model.operator_counter > OPERATOR_WARN_LIMIT
+        Compat.@warn(
             "The addition operator has been used on JuMP expressions a large " *
             "number of times. This warning is safe to ignore but may " *
             "indicate that model generation is slower than necessary. For " *
             "performance reasons, you should not add expressions in a loop. " *
             "Instead of x += y, use add_to_expression!(x,y) to modify x in " *
             "place. If y is a single variable, you may also use " *
-            "add_to_expression!(x, coef, y) for x += coef*y.")
+            "add_to_expression!(x, coef, y) for x += coef*y.", maxlog=1)
     end
 end
 
