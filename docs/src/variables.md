@@ -103,7 +103,7 @@ end
 # TODO(@odow): add a section on looking up by string
 ```
 
-Now that we understand the different between *optimization*, *JuMP*, and *Julia*
+Now that we understand the difference between *optimization*, *JuMP*, and *Julia*
 variables, we can introduce more of the functionality of the `@variable` macro.
 
 ## Variable bounds
@@ -127,6 +127,8 @@ x_interval
 julia> @variable(model, x_fixed == 4)
 x_fixed
 ```
+In the above examples, `x_free` represents an unbounded optimization variable,
+`x_lower` represents an optimization variable with a lower bound and so forth.
 
 !!! note
     When creating a variable with only a lower-bound or an upper-bound, and the
